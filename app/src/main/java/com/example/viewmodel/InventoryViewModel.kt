@@ -130,14 +130,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // Filtered Products
+    // Filtered Products (Stock page only shows active in-stock products)
     val filteredProducts: StateFlow<List<Product>> = combine(
         allProducts,
         _searchQuery,
-        _selectedStatusFilter,
         _selectedBrandFilter
-    ) { products, query, status, brand ->
+    ) { products, query, brand ->
         products.filter { product ->
+            val isInStock = product.status == ProductStatus.IN_STOCK.name
             val matchesQuery = query.isBlank() ||
                     product.model.contains(query, ignoreCase = true) ||
                     product.company.contains(query, ignoreCase = true) ||
@@ -146,15 +146,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     product.color.contains(query, ignoreCase = true) ||
                     product.supplier.contains(query, ignoreCase = true)
 
-            val matchesStatus = when (status) {
-                "IN_STOCK" -> product.status == ProductStatus.IN_STOCK.name
-                "SOLD" -> product.status == ProductStatus.SOLD.name
-                else -> true
-            }
-
             val matchesBrand = if (brand == "ALL") true else product.company.equals(brand, ignoreCase = true)
 
-            matchesQuery && matchesStatus && matchesBrand
+            isInStock && matchesQuery && matchesBrand
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -341,6 +335,48 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 repository.addProduct(newProduct)
                 _snackbarMessage.value = "নতুন পণ্য সফলভাবে স্টকে যুক্ত হয়েছে!"
             }
+            closeAddEdit()
+        }
+    }
+
+    /**
+     * Saves multiple products (5 to 10+ devices) at once from a single supplier batch.
+     */
+    fun saveBatchProducts(
+        company: String,
+        model: String,
+        variant: String,
+        color: String,
+        batteryHealth: String,
+        boxCondition: String,
+        supplier: String,
+        purchasePrice: Double,
+        targetSalePrice: Double,
+        imeis: List<String>,
+        notes: String
+    ) {
+        viewModelScope.launch {
+            val validImeis = imeis.map { it.trim() }.filter { it.isNotBlank() }
+            if (validImeis.isEmpty()) return@launch
+
+            val products = validImeis.map { imei ->
+                Product(
+                    company = company.trim(),
+                    model = model.trim(),
+                    variant = variant.trim(),
+                    color = color.trim(),
+                    batteryHealth = batteryHealth.trim(),
+                    boxCondition = boxCondition.trim(),
+                    supplier = supplier.trim(),
+                    purchasePrice = purchasePrice,
+                    targetSalePrice = targetSalePrice,
+                    imei = imei,
+                    notes = notes.trim(),
+                    status = ProductStatus.IN_STOCK.name
+                )
+            }
+            repository.addProducts(products)
+            _snackbarMessage.value = "একসাথে ${products.size}টি প্রোডাক্ট সফলভাবে স্টকে যুক্ত হয়েছে!"
             closeAddEdit()
         }
     }

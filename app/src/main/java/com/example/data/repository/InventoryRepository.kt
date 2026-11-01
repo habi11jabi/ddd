@@ -23,6 +23,10 @@ class InventoryRepository(
         return productDao.insertProduct(product)
     }
 
+    suspend fun addProducts(products: List<Product>) {
+        productDao.insertAll(products)
+    }
+
     suspend fun updateProduct(product: Product) {
         productDao.updateProduct(product)
     }

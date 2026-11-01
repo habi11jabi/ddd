@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -60,8 +61,6 @@ fun StockScreen(
     products: List<Product>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
-    selectedStatusFilter: String,
-    onStatusFilterChange: (String) -> Unit,
     selectedBrandFilter: String,
     onBrandFilterChange: (String) -> Unit,
     onAddProductClick: () -> Unit,
@@ -150,41 +149,40 @@ fun StockScreen(
                 }
             }
 
-            // Status Filter Chips
+            // In-stock active badge
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF10B981).copy(alpha = 0.12f),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    FilterChip(
-                        selected = selectedStatusFilter == "ALL",
-                        onClick = { onStatusFilterChange("ALL") },
-                        label = { Text("${strings.filterAll} (${products.size})", fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AppleBlue,
-                            selectedLabelColor = Color.White
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color(0xFF10B981), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isEnglish) "Available In-Stock Devices ($inStockCount)" else "দোকানের সক্রিয় স্টক পণ্য ($inStockCount টি)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF047857)
+                            )
+                        }
+                        Text(
+                            text = if (isEnglish) "Sold items go to Sales page" else "বিক্রি হলে অটো সেলস পেইজে যাবে",
+                            fontSize = 11.sp,
+                            color = Color(0xFF047857).copy(alpha = 0.8f)
                         )
-                    )
-
-                    FilterChip(
-                        selected = selectedStatusFilter == "IN_STOCK",
-                        onClick = { onStatusFilterChange("IN_STOCK") },
-                        label = { Text("${strings.filterInStock} ($inStockCount)", fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF10B981),
-                            selectedLabelColor = Color.White
-                        )
-                    )
-
-                    FilterChip(
-                        selected = selectedStatusFilter == "SOLD",
-                        onClick = { onStatusFilterChange("SOLD") },
-                        label = { Text("${strings.filterSold} (${products.count { it.status == ProductStatus.SOLD.name }})", fontSize = 12.sp) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF64748B),
-                            selectedLabelColor = Color.White
-                        )
-                    )
+                    }
                 }
             }
 

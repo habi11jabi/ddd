@@ -375,25 +375,55 @@ ${shopSettings.shopName} • ${shopSettings.shopPhone}
                             }
                         }
 
-                        // Warranty Badge
+                        // Warranty Badge with Shop Logo
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(AppleBlue.copy(alpha = 0.08f))
-                                .padding(10.dp)
+                                .border(1.dp, AppleBlue.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
+                                .padding(12.dp)
                         ) {
-                            Column {
-                                Text(
-                                    text = strings.warrantySection,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AppleBlue
-                                )
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Image(
+                                            painter = painterResource(id = R.drawable.shop_logo),
+                                            contentDescription = "Shop Logo",
+                                            modifier = Modifier
+                                                .height(28.dp)
+                                                .width(46.dp)
+                                                .padding(end = 6.dp)
+                                        )
+                                        Text(
+                                            text = strings.warrantySection,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppleBlue
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = Color(0xFF10B981).copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = "Verified Warranty",
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF047857),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                                 Text(
                                     text = sale.warrantyInfo.ifBlank { shopSettings.fullWarrantyText },
                                     fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    lineHeight = 16.sp
                                 )
                             }
                         }
