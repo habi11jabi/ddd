@@ -4,10 +4,14 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.db.AppDatabase
+import com.example.data.model.Employee
+import com.example.data.model.Expense
 import com.example.data.model.Product
 import com.example.data.model.ProductStatus
+import com.example.data.model.SalaryPayment
 import com.example.data.model.Sale
 import com.example.data.model.ShopSettings
+import com.example.data.model.TransactionType
 import com.example.data.repository.InventoryRepository
 import com.example.data.repository.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +28,8 @@ import java.util.Locale
 enum class AppTab {
     DASHBOARD,
     STOCK,
+    EXPENSES,
+    EMPLOYEES,
     SALES,
     REPORTS,
     SETTINGS
@@ -36,7 +42,18 @@ data class DashboardMetrics(
     val totalSalesCount: Int = 0,
     val totalRevenue: Double = 0.0,
     val totalProfit: Double = 0.0,
-    val totalDue: Double = 0.0
+    val totalDue: Double = 0.0,
+    val todayNetBalance: Double = 0.0,
+    val totalStaffCount: Int = 0
+)
+
+data class CashbookMetrics(
+    val todayIncome: Double = 0.0,
+    val todayExpense: Double = 0.0,
+    val todayBalance: Double = 0.0,
+    val periodIncome: Double = 0.0,
+    val periodExpense: Double = 0.0,
+    val periodBalance: Double = 0.0
 )
 
 data class MonthlyReport(
@@ -58,21 +75,28 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     val allProducts: StateFlow<List<Product>>
     val allSales: StateFlow<List<Sale>>
+    val allExpenses: StateFlow<List<Expense>>
+    val allEmployees: StateFlow<List<Employee>>
+    val allSalaryPayments: StateFlow<List<SalaryPayment>>
     val shopSettings: StateFlow<ShopSettings> = settingsManager.settings
 
     // Navigation Tab
     private val _currentTab = MutableStateFlow(AppTab.DASHBOARD)
     val currentTab: StateFlow<AppTab> = _currentTab.asStateFlow()
 
-    // Search and Filters
+    // Search and Filters for Stock
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _selectedStatusFilter = MutableStateFlow("ALL") // "ALL", "IN_STOCK", "SOLD"
+    private val _selectedStatusFilter = MutableStateFlow("ALL")
     val selectedStatusFilter: StateFlow<String> = _selectedStatusFilter.asStateFlow()
 
     private val _selectedBrandFilter = MutableStateFlow("ALL")
     val selectedBrandFilter: StateFlow<String> = _selectedBrandFilter.asStateFlow()
+
+    // Expense Period Filter: "TODAY", "THIS_WEEK", "THIS_MONTH", "ALL"
+    private val _expenseFilterPeriod = MutableStateFlow("THIS_MONTH")
+    val expenseFilterPeriod: StateFlow<String> = _expenseFilterPeriod.asStateFlow()
 
     // Add / Edit Product Dialog / Screen State
     private val _isAddEditOpen = MutableStateFlow(false)
@@ -111,7 +135,13 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val db = AppDatabase.getDatabase(application)
-        repository = InventoryRepository(application, db.productDao(), db.saleDao())
+        repository = InventoryRepository(
+            application,
+            db.productDao(),
+            db.saleDao(),
+            db.expenseDao(),
+            db.employeeDao()
+        )
 
         allProducts = repository.allProducts.stateIn(
             scope = viewModelScope,
@@ -120,6 +150,24 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         )
 
         allSales = repository.allSales.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        allExpenses = repository.allExpenses.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        allEmployees = repository.allEmployees.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+        allSalaryPayments = repository.allSalaryPayments.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
@@ -152,11 +200,156 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Filtered Expenses by selected period
+    val filteredExpenses: StateFlow<List<Expense>> = combine(
+        allExpenses,
+        _expenseFilterPeriod
+    ) { expenses, period ->
+        val cal = Calendar.getInstance()
+        val now = System.currentTimeMillis()
+
+        when (period) {
+            "TODAY" -> {
+                cal.timeInMillis = now
+                val currentDay = cal.get(Calendar.DAY_OF_YEAR)
+                val currentYear = cal.get(Calendar.YEAR)
+                expenses.filter {
+                    cal.timeInMillis = it.dateMillis
+                    cal.get(Calendar.DAY_OF_YEAR) == currentDay && cal.get(Calendar.YEAR) == currentYear
+                }
+            }
+            "THIS_WEEK" -> {
+                cal.timeInMillis = now
+                val currentWeek = cal.get(Calendar.WEEK_OF_YEAR)
+                val currentYear = cal.get(Calendar.YEAR)
+                expenses.filter {
+                    cal.timeInMillis = it.dateMillis
+                    cal.get(Calendar.WEEK_OF_YEAR) == currentWeek && cal.get(Calendar.YEAR) == currentYear
+                }
+            }
+            "THIS_MONTH" -> {
+                cal.timeInMillis = now
+                val currentMonth = cal.get(Calendar.MONTH)
+                val currentYear = cal.get(Calendar.YEAR)
+                expenses.filter {
+                    cal.timeInMillis = it.dateMillis
+                    cal.get(Calendar.MONTH) == currentMonth && cal.get(Calendar.YEAR) == currentYear
+                }
+            }
+            else -> expenses
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Cashbook metrics calculation
+    val cashbookMetrics: StateFlow<CashbookMetrics> = combine(
+        allExpenses,
+        allSales,
+        _expenseFilterPeriod
+    ) { expenses, sales, period ->
+        val cal = Calendar.getInstance()
+        val now = System.currentTimeMillis()
+        cal.timeInMillis = now
+        val todayDay = cal.get(Calendar.DAY_OF_YEAR)
+        val todayYear = cal.get(Calendar.YEAR)
+
+        // Today calculations
+        val todaySalesTotal = sales.filter {
+            cal.timeInMillis = it.soldAt
+            cal.get(Calendar.DAY_OF_YEAR) == todayDay && cal.get(Calendar.YEAR) == todayYear
+        }.sumOf { it.paidAmount }
+
+        val todayExtraIncome = expenses.filter {
+            it.type == TransactionType.INCOME.name && run {
+                cal.timeInMillis = it.dateMillis
+                cal.get(Calendar.DAY_OF_YEAR) == todayDay && cal.get(Calendar.YEAR) == todayYear
+            }
+        }.sumOf { it.amount }
+
+        val todayTotalIncome = todaySalesTotal + todayExtraIncome
+
+        val todayTotalExpense = expenses.filter {
+            it.type == TransactionType.EXPENSE.name && run {
+                cal.timeInMillis = it.dateMillis
+                cal.get(Calendar.DAY_OF_YEAR) == todayDay && cal.get(Calendar.YEAR) == todayYear
+            }
+        }.sumOf { it.amount }
+
+        val todayBalance = todayTotalIncome - todayTotalExpense
+
+        // Period calculations
+        val periodExpenses = when (period) {
+            "TODAY" -> expenses.filter {
+                cal.timeInMillis = it.dateMillis
+                cal.get(Calendar.DAY_OF_YEAR) == todayDay && cal.get(Calendar.YEAR) == todayYear
+            }
+            "THIS_WEEK" -> {
+                cal.timeInMillis = now
+                val week = cal.get(Calendar.WEEK_OF_YEAR)
+                val year = cal.get(Calendar.YEAR)
+                expenses.filter {
+                    cal.timeInMillis = it.dateMillis
+                    cal.get(Calendar.WEEK_OF_YEAR) == week && cal.get(Calendar.YEAR) == year
+                }
+            }
+            "THIS_MONTH" -> {
+                cal.timeInMillis = now
+                val month = cal.get(Calendar.MONTH)
+                val year = cal.get(Calendar.YEAR)
+                expenses.filter {
+                    cal.timeInMillis = it.dateMillis
+                    cal.get(Calendar.MONTH) == month && cal.get(Calendar.YEAR) == year
+                }
+            }
+            else -> expenses
+        }
+
+        val periodSales = when (period) {
+            "TODAY" -> sales.filter {
+                cal.timeInMillis = it.soldAt
+                cal.get(Calendar.DAY_OF_YEAR) == todayDay && cal.get(Calendar.YEAR) == todayYear
+            }
+            "THIS_WEEK" -> {
+                cal.timeInMillis = now
+                val week = cal.get(Calendar.WEEK_OF_YEAR)
+                val year = cal.get(Calendar.YEAR)
+                sales.filter {
+                    cal.timeInMillis = it.soldAt
+                    cal.get(Calendar.WEEK_OF_YEAR) == week && cal.get(Calendar.YEAR) == year
+                }
+            }
+            "THIS_MONTH" -> {
+                cal.timeInMillis = now
+                val month = cal.get(Calendar.MONTH)
+                val year = cal.get(Calendar.YEAR)
+                sales.filter {
+                    cal.timeInMillis = it.soldAt
+                    cal.get(Calendar.MONTH) == month && cal.get(Calendar.YEAR) == year
+                }
+            }
+            else -> sales
+        }
+
+        val pIncome = periodSales.sumOf { it.paidAmount } + periodExpenses.filter { it.type == TransactionType.INCOME.name }.sumOf { it.amount }
+        val pExpense = periodExpenses.filter { it.type == TransactionType.EXPENSE.name }.sumOf { it.amount }
+        val pBalance = pIncome - pExpense
+
+        CashbookMetrics(
+            todayIncome = todayTotalIncome,
+            todayExpense = todayTotalExpense,
+            todayBalance = todayBalance,
+            periodIncome = pIncome,
+            periodExpense = pExpense,
+            periodBalance = pBalance
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CashbookMetrics())
+
     // Metrics for Dashboard
     val dashboardMetrics: StateFlow<DashboardMetrics> = combine(
         allProducts,
-        allSales
-    ) { products, sales ->
+        allSales,
+        cashbookMetrics,
+        allEmployees
+    ) { products, sales, cash, employees ->
         val inStock = products.filter { it.status == ProductStatus.IN_STOCK.name }
         val inStockCount = inStock.size
         val stockVal = inStock.sumOf { it.purchasePrice }
@@ -174,7 +367,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             totalSalesCount = totalSalesCount,
             totalRevenue = totalRevenue,
             totalProfit = totalProfit,
-            totalDue = totalDue
+            totalDue = totalDue,
+            todayNetBalance = cash.todayBalance,
+            totalStaffCount = employees.count { it.isActive }
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DashboardMetrics())
 
@@ -199,53 +394,55 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             "LAST_MONTH" -> {
                 cal.timeInMillis = now
                 cal.add(Calendar.MONTH, -1)
-                val lastMonth = cal.get(Calendar.MONTH)
-                val lastYear = cal.get(Calendar.YEAR)
+                val targetMonth = cal.get(Calendar.MONTH)
+                val targetYear = cal.get(Calendar.YEAR)
                 sales.filter {
                     cal.timeInMillis = it.soldAt
-                    cal.get(Calendar.MONTH) == lastMonth && cal.get(Calendar.YEAR) == lastYear
+                    cal.get(Calendar.MONTH) == targetMonth && cal.get(Calendar.YEAR) == targetYear
                 }
             }
             else -> sales
         }
 
-        val periodLabel = when (period) {
-            "THIS_MONTH" -> "চলতি মাসের হিসাব (This Month)"
-            "LAST_MONTH" -> "বিগত মাসের হিসাব (Last Month)"
-            else -> "সর্বমোট হিসাব (All Time)"
-        }
-
-        val totalRev = filteredSales.sumOf { it.salePrice }
-        val totalCost = filteredSales.sumOf { it.costPrice }
-        val totalProf = filteredSales.sumOf { it.profit }
-        val totalPaid = filteredSales.sumOf { it.paidAmount }
-        val totalDue = filteredSales.sumOf { it.dueAmount }
-        val margin = if (totalRev > 0) (totalProf / totalRev) * 100 else 0.0
+        val units = filteredSales.size
+        val revenue = filteredSales.sumOf { it.salePrice }
+        val cost = filteredSales.sumOf { it.costPrice }
+        val profit = filteredSales.sumOf { it.profit }
+        val paid = filteredSales.sumOf { it.paidAmount }
+        val due = filteredSales.sumOf { it.dueAmount }
+        val margin = if (revenue > 0) (profit / revenue) * 100 else 0.0
 
         val topModels = filteredSales
-            .groupBy { it.productDetails }
+            .groupBy { it.productDetails.substringBefore("(") }
             .mapValues { it.value.size }
             .toList()
             .sortedByDescending { it.second }
             .take(5)
 
+        val periodName = when (period) {
+            "THIS_MONTH" -> "চলতি মাস"
+            "LAST_MONTH" -> "গত মাস"
+            else -> "সব সময়"
+        }
+
         MonthlyReport(
-            periodName = periodLabel,
-            unitsSold = filteredSales.size,
-            totalRevenue = totalRev,
-            totalCost = totalCost,
-            totalProfit = totalProf,
-            totalPaid = totalPaid,
-            totalDue = totalDue,
+            periodName = periodName,
+            unitsSold = units,
+            totalRevenue = revenue,
+            totalCost = cost,
+            totalProfit = profit,
+            totalPaid = paid,
+            totalDue = due,
             profitMarginPercent = margin,
             topSellingModels = topModels
         )
     }.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
-        MonthlyReport("চলতি মাসের হিসাব", 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, emptyList())
+        MonthlyReport("চলতি মাস", 0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, emptyList())
     )
 
+    // Navigation and Tab controls
     fun setTab(tab: AppTab) {
         _currentTab.value = tab
     }
@@ -266,11 +463,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _reportPeriod.value = period
     }
 
+    fun setExpenseFilterPeriod(period: String) {
+        _expenseFilterPeriod.value = period
+    }
+
     fun clearSnackbar() {
         _snackbarMessage.value = null
     }
 
-    // Product actions
+    // Add / Edit Product Actions
     fun openAddProduct() {
         _editingProduct.value = null
         _isAddEditOpen.value = true
@@ -300,9 +501,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         notes: String
     ) {
         viewModelScope.launch {
-            val existing = _editingProduct.value
-            if (existing != null) {
-                val updated = existing.copy(
+            val current = _editingProduct.value
+            if (current != null) {
+                val updated = current.copy(
                     company = company.trim(),
                     model = model.trim(),
                     variant = variant.trim(),
@@ -316,7 +517,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     notes = notes.trim()
                 )
                 repository.updateProduct(updated)
-                _snackbarMessage.value = "পণ্য সফলভাবে আপডেট করা হয়েছে!"
+                _snackbarMessage.value = "${updated.model} আপডেট করা হয়েছে!"
             } else {
                 val newProduct = Product(
                     company = company.trim(),
@@ -333,15 +534,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     status = ProductStatus.IN_STOCK.name
                 )
                 repository.addProduct(newProduct)
-                _snackbarMessage.value = "নতুন পণ্য সফলভাবে স্টকে যুক্ত হয়েছে!"
+                _snackbarMessage.value = "${newProduct.model} স্টকে সফলভাবে যুক্ত হয়েছে!"
             }
             closeAddEdit()
         }
     }
 
-    /**
-     * Saves multiple products (5 to 10+ devices) at once from a single supplier batch.
-     */
     fun saveBatchProducts(
         company: String,
         model: String,
@@ -356,10 +554,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         notes: String
     ) {
         viewModelScope.launch {
-            val validImeis = imeis.map { it.trim() }.filter { it.isNotBlank() }
-            if (validImeis.isEmpty()) return@launch
-
-            val products = validImeis.map { imei ->
+            val products = imeis.mapIndexed { index, imeiItem ->
                 Product(
                     company = company.trim(),
                     model = model.trim(),
@@ -370,13 +565,13 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     supplier = supplier.trim(),
                     purchasePrice = purchasePrice,
                     targetSalePrice = targetSalePrice,
-                    imei = imei,
-                    notes = notes.trim(),
+                    imei = imeiItem.trim(),
+                    notes = if (imeis.size > 1) "$notes (Item #${index + 1} of ${imeis.size})" else notes,
                     status = ProductStatus.IN_STOCK.name
                 )
             }
             repository.addProducts(products)
-            _snackbarMessage.value = "একসাথে ${products.size}টি প্রোডাক্ট সফলভাবে স্টকে যুক্ত হয়েছে!"
+            _snackbarMessage.value = "একসাথে ${products.size}টি $model সফলভাবে স্টকে যুক্ত হয়েছে!"
             closeAddEdit()
         }
     }
@@ -384,11 +579,11 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun deleteProduct(product: Product) {
         viewModelScope.launch {
             repository.deleteProduct(product)
-            _snackbarMessage.value = "${product.model} স্টক থেকে মুছে ফেলা হয়েছে।"
+            _snackbarMessage.value = "${product.model} মুছে ফেলা হয়েছে।"
         }
     }
 
-    // Sale Checkout
+    // Sale & Checkout Actions
     fun openSaleCheckout(product: Product) {
         _productToSell.value = product
     }
@@ -409,25 +604,45 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     ) {
         val product = _productToSell.value ?: return
         viewModelScope.launch {
-            val finalWarranty = warrantyInfo.ifBlank { shopSettings.value.fullWarrantyText }
-            repository.recordSale(
+            val saleId = repository.recordSale(
                 product = product,
                 customerName = customerName.trim(),
                 customerPhone = customerPhone.trim(),
                 customerAddress = customerAddress.trim(),
                 salePrice = salePrice,
                 paidAmount = paidAmount,
-                paymentMethod = paymentMethod.trim(),
-                warrantyInfo = finalWarranty,
-                remarks = remarks.trim()
+                paymentMethod = paymentMethod,
+                warrantyInfo = warrantyInfo,
+                remarks = remarks
             )
             _productToSell.value = null
-            _snackbarMessage.value = "বিক্রি সম্পন্ন হয়েছে ও ইনভয়েস তৈরি হয়েছে!"
-            _currentTab.value = AppTab.SALES
+            _snackbarMessage.value = "${product.model} বিক্রি সফল হয়েছে! ক্যাশমেমো তৈরি হয়েছে।"
+
+            val sale = Sale(
+                id = saleId,
+                productId = product.id,
+                invoiceNumber = "AABD-" + (System.currentTimeMillis() % 1000000).toString(),
+                productDetails = "${product.company} ${product.model} (${product.variant}, ${product.color})",
+                imei = product.imei,
+                batteryHealth = product.batteryHealth,
+                boxCondition = product.boxCondition,
+                customerName = customerName.trim(),
+                customerPhone = customerPhone.trim(),
+                customerAddress = customerAddress.trim(),
+                costPrice = product.purchasePrice,
+                salePrice = salePrice,
+                paidAmount = paidAmount,
+                dueAmount = (salePrice - paidAmount).coerceAtLeast(0.0),
+                paymentMethod = paymentMethod,
+                warrantyInfo = warrantyInfo,
+                soldAt = System.currentTimeMillis(),
+                remarks = remarks
+            )
+            _activeInvoiceSale.value = sale
         }
     }
 
-    // Invoice Memo
+    // Invoice View / Dialog
     fun openInvoice(sale: Sale) {
         _activeInvoiceSale.value = sale
     }
@@ -436,7 +651,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _activeInvoiceSale.value = null
     }
 
-    // Sale Edit & Delete
+    // Edit Sale / Memo
     fun openEditSale(sale: Sale) {
         _editingSale.value = sale
     }
@@ -449,7 +664,6 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             repository.updateSale(sale)
             _editingSale.value = null
-            // Update active invoice if it was open
             if (_activeInvoiceSale.value?.id == sale.id) {
                 _activeInvoiceSale.value = sale
             }
@@ -485,6 +699,108 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Expense & Income Actions
+    fun addExpense(
+        type: String,
+        category: String,
+        amount: Double,
+        note: String,
+        paymentMethod: String,
+        dateMillis: Long = System.currentTimeMillis()
+    ) {
+        viewModelScope.launch {
+            val item = Expense(
+                type = type,
+                category = category.trim(),
+                amount = amount,
+                note = note.trim(),
+                paymentMethod = paymentMethod,
+                dateMillis = dateMillis
+            )
+            repository.addExpense(item)
+            val label = if (type == TransactionType.EXPENSE.name) "খরচ" else "আয়"
+            _snackbarMessage.value = "৳ ${formatBdt(amount)} $label সফলভাবে যুক্ত হয়েছে!"
+        }
+    }
+
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.deleteExpense(expense)
+            _snackbarMessage.value = "হিসাব এন্ট্রি মুছে ফেলা হয়েছে।"
+        }
+    }
+
+    // Employee & Salary Actions
+    fun addEmployee(
+        name: String,
+        designation: String,
+        phone: String,
+        salary: Double,
+        address: String = "",
+        notes: String = ""
+    ) {
+        viewModelScope.launch {
+            val emp = Employee(
+                name = name.trim(),
+                designation = designation.trim(),
+                phone = phone.trim(),
+                monthlySalary = salary,
+                address = address.trim(),
+                notes = notes.trim(),
+                joiningDateMillis = System.currentTimeMillis(),
+                isActive = true
+            )
+            repository.addEmployee(emp)
+            _snackbarMessage.value = "${emp.name} কে কর্মচারী হিসেবে যুক্ত করা হয়েছে!"
+        }
+    }
+
+    fun updateEmployee(employee: Employee) {
+        viewModelScope.launch {
+            repository.updateEmployee(employee)
+            _snackbarMessage.value = "${employee.name} এর তথ্য আপডেট করা হয়েছে!"
+        }
+    }
+
+    fun deleteEmployee(employee: Employee) {
+        viewModelScope.launch {
+            repository.deleteEmployee(employee)
+            _snackbarMessage.value = "${employee.name} কে মুছে ফেলা হয়েছে।"
+        }
+    }
+
+    fun recordSalaryPayment(
+        employee: Employee,
+        monthYear: String,
+        amountPaid: Double,
+        paymentType: String,
+        paymentMethod: String,
+        note: String,
+        recordAsShopExpense: Boolean = true
+    ) {
+        viewModelScope.launch {
+            val payment = SalaryPayment(
+                employeeId = employee.id,
+                employeeName = employee.name,
+                monthYear = monthYear.trim(),
+                amountPaid = amountPaid,
+                paymentDateMillis = System.currentTimeMillis(),
+                paymentMethod = paymentMethod,
+                paymentType = paymentType,
+                note = note.trim()
+            )
+            repository.recordSalaryPayment(payment, recordAsShopExpense)
+            _snackbarMessage.value = "${employee.name} কে ৳ ${formatBdt(amountPaid)} বেতন পরিশোধ সফল হয়েছে!"
+        }
+    }
+
+    fun deleteSalaryPayment(payment: SalaryPayment) {
+        viewModelScope.launch {
+            repository.deleteSalaryPayment(payment)
+            _snackbarMessage.value = "বেতন পরিশোধের রেকর্ড মুছে ফেলা হয়েছে।"
+        }
+    }
+
     // Settings Customization
     fun updateShopSettings(settings: ShopSettings) {
         settingsManager.saveSettings(settings)
@@ -499,7 +815,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun clearAllDatabaseData() {
         viewModelScope.launch {
             repository.clearAllData()
-            _snackbarMessage.value = "সকল স্টক এবং বিক্রয় তথ্য মুছে ফেলা হয়েছে।"
+            _snackbarMessage.value = "সকল স্টক, বিক্রি, খরচ এবং কর্মচারীর তথ্য মুছে ফেলা হয়েছে।"
         }
     }
 

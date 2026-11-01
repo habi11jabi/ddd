@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PointOfSale
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -43,6 +45,8 @@ import com.example.ui.screens.AddEditProductScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.DuePaymentDialog
 import com.example.ui.screens.EditSaleDialog
+import com.example.ui.screens.EmployeeScreen
+import com.example.ui.screens.ExpenseScreen
 import com.example.ui.screens.InvoiceMemoDialog
 import com.example.ui.screens.ReportsScreen
 import com.example.ui.screens.SaleCheckoutDialog
@@ -88,6 +92,12 @@ fun MainAppContent(viewModel: InventoryViewModel) {
     val selectedStatusFilter by viewModel.selectedStatusFilter.collectAsStateWithLifecycle()
     val selectedBrandFilter by viewModel.selectedBrandFilter.collectAsStateWithLifecycle()
     val reportPeriod by viewModel.reportPeriod.collectAsStateWithLifecycle()
+
+    val filteredExpenses by viewModel.filteredExpenses.collectAsStateWithLifecycle()
+    val cashbookMetrics by viewModel.cashbookMetrics.collectAsStateWithLifecycle()
+    val expenseFilterPeriod by viewModel.expenseFilterPeriod.collectAsStateWithLifecycle()
+    val allEmployees by viewModel.allEmployees.collectAsStateWithLifecycle()
+    val allSalaryPayments by viewModel.allSalaryPayments.collectAsStateWithLifecycle()
 
     val snackbarMsg by viewModel.snackbarMessage.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -238,7 +248,7 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         selected = currentTab == AppTab.DASHBOARD,
                         onClick = { viewModel.setTab(AppTab.DASHBOARD) },
                         icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
-                        label = { Text(currentStrings.tabDashboard, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text(currentStrings.tabDashboard, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = AppleBlue,
                             indicatorColor = AppleBlue.copy(alpha = 0.15f)
@@ -249,7 +259,7 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         selected = currentTab == AppTab.STOCK,
                         onClick = { viewModel.setTab(AppTab.STOCK) },
                         icon = { Icon(Icons.Default.Inventory2, contentDescription = "Stock") },
-                        label = { Text(currentStrings.tabStock, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text(currentStrings.tabStock, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = AppleBlue,
                             indicatorColor = AppleBlue.copy(alpha = 0.15f)
@@ -257,10 +267,32 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         modifier = Modifier.testTag("tab_stock")
                     )
                     NavigationBarItem(
+                        selected = currentTab == AppTab.EXPENSES,
+                        onClick = { viewModel.setTab(AppTab.EXPENSES) },
+                        icon = { Icon(Icons.Default.Payments, contentDescription = "Expenses") },
+                        label = { Text(currentStrings.tabExpenses, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = AppleBlue,
+                            indicatorColor = AppleBlue.copy(alpha = 0.15f)
+                        ),
+                        modifier = Modifier.testTag("tab_expenses")
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == AppTab.EMPLOYEES,
+                        onClick = { viewModel.setTab(AppTab.EMPLOYEES) },
+                        icon = { Icon(Icons.Default.Badge, contentDescription = "Employees") },
+                        label = { Text(currentStrings.tabEmployees, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = AppleBlue,
+                            indicatorColor = AppleBlue.copy(alpha = 0.15f)
+                        ),
+                        modifier = Modifier.testTag("tab_employees")
+                    )
+                    NavigationBarItem(
                         selected = currentTab == AppTab.SALES,
                         onClick = { viewModel.setTab(AppTab.SALES) },
                         icon = { Icon(Icons.Default.PointOfSale, contentDescription = "Sales") },
-                        label = { Text(currentStrings.tabSales, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text(currentStrings.tabSales, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = AppleBlue,
                             indicatorColor = AppleBlue.copy(alpha = 0.15f)
@@ -268,21 +300,10 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         modifier = Modifier.testTag("tab_sales")
                     )
                     NavigationBarItem(
-                        selected = currentTab == AppTab.REPORTS,
-                        onClick = { viewModel.setTab(AppTab.REPORTS) },
-                        icon = { Icon(Icons.Default.Assessment, contentDescription = "Reports") },
-                        label = { Text(currentStrings.tabReports, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = AppleBlue,
-                            indicatorColor = AppleBlue.copy(alpha = 0.15f)
-                        ),
-                        modifier = Modifier.testTag("tab_reports")
-                    )
-                    NavigationBarItem(
                         selected = currentTab == AppTab.SETTINGS,
                         onClick = { viewModel.setTab(AppTab.SETTINGS) },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text(currentStrings.tabSettings, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) },
+                        label = { Text(currentStrings.tabSettings, fontSize = 9.sp, fontWeight = FontWeight.SemiBold) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = AppleBlue,
                             indicatorColor = AppleBlue.copy(alpha = 0.15f)
@@ -322,6 +343,29 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         onSellProduct = { viewModel.openSaleCheckout(it) },
                         onEditProduct = { viewModel.openEditProduct(it) },
                         onDeleteProduct = { viewModel.deleteProduct(it) }
+                    )
+                    AppTab.EXPENSES -> ExpenseScreen(
+                        expenses = filteredExpenses,
+                        cashbookMetrics = cashbookMetrics,
+                        selectedPeriod = expenseFilterPeriod,
+                        onPeriodSelect = { viewModel.setExpenseFilterPeriod(it) },
+                        onAddTransaction = { type, cat, amt, note, method ->
+                            viewModel.addExpense(type, cat, amt, note, method)
+                        },
+                        onDeleteExpense = { viewModel.deleteExpense(it) }
+                    )
+                    AppTab.EMPLOYEES -> EmployeeScreen(
+                        employees = allEmployees,
+                        salaryPayments = allSalaryPayments,
+                        onAddEmployee = { name, desig, phone, sal, addr, notes ->
+                            viewModel.addEmployee(name, desig, phone, sal, addr, notes)
+                        },
+                        onUpdateEmployee = { viewModel.updateEmployee(it) },
+                        onDeleteEmployee = { viewModel.deleteEmployee(it) },
+                        onPaySalary = { emp, month, amt, type, method, note, recExp ->
+                            viewModel.recordSalaryPayment(emp, month, amt, type, method, note, recExp)
+                        },
+                        onDeleteSalaryPayment = { viewModel.deleteSalaryPayment(it) }
                     )
                     AppTab.SALES -> SalesScreen(
                         sales = allSales,
