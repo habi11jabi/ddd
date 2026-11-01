@@ -1,0 +1,6 @@
+{
+  "name": "Shop App",
+  "description": "Mobile inventory, sales, customer tracking, and reporting app for shop with full offline support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
