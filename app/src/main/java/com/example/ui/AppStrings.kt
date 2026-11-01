@@ -182,7 +182,7 @@ data class AppStrings(
 )
 
 val BanglaStrings = AppStrings(
-    appTitle = "Shop App",
+    appTitle = "APPLE AREA BD",
     tabDashboard = "ড্যাশবোর্ড",
     tabStock = "স্টক লিস্ট",
     tabSales = "বিক্রি ও মেমো",
@@ -348,7 +348,7 @@ val BanglaStrings = AppStrings(
 )
 
 val EnglishStrings = AppStrings(
-    appTitle = "Shop App",
+    appTitle = "APPLE AREA BD",
     tabDashboard = "Dashboard",
     tabStock = "Stock List",
     tabSales = "Sales & Invoices",

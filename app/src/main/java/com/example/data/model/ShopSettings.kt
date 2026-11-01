@@ -2,10 +2,10 @@ package com.example.data.model
 
 data class ShopSettings(
     val appLanguage: String = "BN", // "BN" (বাংলা) or "EN" (English)
-    val shopName: String = "Shop App",
-    val shopTagline: String = "এক্সক্লুসিভ স্মার্টফোন ও ইলেকট্রনিক্স শপ",
-    val shopPhone: String = "01700000000",
-    val shopAddress: String = "ঢাকা, বাংলাদেশ",
+    val shopName: String = "APPLE AREA BD",
+    val shopTagline: String = "Buy Sell & Exchange",
+    val shopPhone: String = "01930833375, 01758596640",
+    val shopAddress: String = "Shop No # 100, Basement - 1, Bashundhara City Shopping Mall, Panthapath, Dhaka- 1205",
     val warrantyReplacement: String = "7 Days Replacement Guarantee Without physical Damage & Touch Display.",
     val warrantyService: String = "2 Years Service Warranty Without Parts & update issue.",
     val warrantyExchangeDeduction: String = "30% - 35% Deducted From Sell Amount and Exchange.",

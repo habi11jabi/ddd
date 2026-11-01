@@ -80,6 +80,7 @@ fun DashboardScreen(
     products: List<Product>,
     searchQuery: String,
     onSearchChange: (String) -> Unit,
+    shopSettings: com.example.data.model.ShopSettings = com.example.data.model.ShopSettings(),
     onAddProductClick: () -> Unit,
     onOpenScanner: () -> Unit,
     onNavigateTab: (AppTab) -> Unit,
@@ -129,14 +130,14 @@ fun DashboardScreen(
 
                         Column {
                             Text(
-                                text = strings.appTitle,
-                                fontSize = 19.sp,
+                                text = shopSettings.shopName,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 letterSpacing = 0.5.sp
                             )
                             Text(
-                                text = currentDateStr,
+                                text = "${shopSettings.shopTagline} • $currentDateStr",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

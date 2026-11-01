@@ -303,6 +303,7 @@ fun MainAppContent(viewModel: InventoryViewModel) {
                         products = filteredProducts,
                         searchQuery = searchQuery,
                         onSearchChange = { viewModel.setSearchQuery(it) },
+                        shopSettings = shopSettings,
                         onAddProductClick = { viewModel.openAddProduct() },
                         onOpenScanner = { viewModel.openScanner() },
                         onNavigateTab = { viewModel.setTab(it) },

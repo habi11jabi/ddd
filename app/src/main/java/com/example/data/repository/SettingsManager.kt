@@ -15,10 +15,11 @@ class SettingsManager(context: Context) {
 
     private fun loadSettings(): ShopSettings {
         val appLanguage = prefs.getString("app_language", "BN") ?: "BN"
-        val shopName = prefs.getString("shop_name", "Shop App") ?: "Shop App"
-        val shopTagline = prefs.getString("shop_tagline", "এক্সক্লুসিভ স্মার্টফোন ও ইলেকট্রনিক্স শপ") ?: "এক্সক্লুসিভ স্মার্টফোন ও ইলেকট্রনিক্স শপ"
-        val shopPhone = prefs.getString("shop_phone", "01711223344") ?: "01711223344"
-        val shopAddress = prefs.getString("shop_address", "ঢাকা, বাংলাদেশ") ?: "ঢাকা, বাংলাদেশ"
+        val shopName = prefs.getString("shop_name", "APPLE AREA BD") ?: "APPLE AREA BD"
+        val shopTagline = prefs.getString("shop_tagline", "Buy Sell & Exchange") ?: "Buy Sell & Exchange"
+        val shopPhone = prefs.getString("shop_phone", "01930833375, 01758596640") ?: "01930833375, 01758596640"
+        val shopAddress = prefs.getString("shop_address", "Shop No # 100, Basement - 1, Bashundhara City Shopping Mall, Panthapath, Dhaka- 1205")
+            ?: "Shop No # 100, Basement - 1, Bashundhara City Shopping Mall, Panthapath, Dhaka- 1205"
 
         val warrantyReplacement = prefs.getString("w_replacement", "7 Days Replacement Guarantee Without physical Damage & Touch Display.")
             ?: "7 Days Replacement Guarantee Without physical Damage & Touch Display."

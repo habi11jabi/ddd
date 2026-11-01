@@ -506,7 +506,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun loadDemoData() {
         viewModelScope.launch {
             repository.seedDemoData()
-            _snackbarMessage.value = "ডেমো স্টক এবং বিক্রয় তথ্য সফলভাবে লোড হয়েছে।"
+            val current = shopSettings.value
+            val demoSettings = current.copy(
+                shopName = "APPLE AREA BD",
+                shopTagline = "Buy Sell & Exchange",
+                shopPhone = "01930833375, 01758596640",
+                shopAddress = "Shop No # 100, Basement - 1, Bashundhara City Shopping Mall, Panthapath, Dhaka- 1205"
+            )
+            settingsManager.saveSettings(demoSettings)
+            _snackbarMessage.value = "APPLE AREA BD এর ডেমো ডাটা এবং শপ ইনফো সফলভাবে লোড হয়েছে।"
         }
     }
 
